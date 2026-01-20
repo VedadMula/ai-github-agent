@@ -1,6 +1,9 @@
 import json
 import os
 import urllib.request
+import time
+import urllib.error
+
 
 
 def summarize_issue_simple(title: str, body: str) -> str:
@@ -59,11 +62,29 @@ Issue Body:
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
+    last_error = None
+    for attempt in range(4):  # 4 tries total
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            text = data["output"][0]["content"][0]["text"]
+            return text
+        except urllib.error.HTTPError as e:
+            last_error = e
+            # Retry on rate limits and transient server errors
+            if e.code in (429, 500, 502, 503, 504):
+                time.sleep(2 ** attempt)  # 1s, 2s, 4s, 8s
+                continue
+            # Non-retryable HTTP error
+            break
+        except Exception as e:
+            last_error = e
+            time.sleep(2 ** attempt)
+            continue
 
-    text = data["output"][0]["content"][0]["text"]
-    return text
+    # If LLM fails, fall back so workflow still comments
+    return summarize_issue_simple(title, body)
+
 
 
 def main() -> None:
