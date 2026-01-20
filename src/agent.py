@@ -33,7 +33,7 @@ def summarize_issue_llm(title: str, body: str) -> str:
     if not api_key:
         return summarize_issue_simple(title, body)
 
-    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").strip().rstrip("/")
     model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
     prompt = f"""You are an assistant that summarizes GitHub issues for engineers.
