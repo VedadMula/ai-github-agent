@@ -23,26 +23,21 @@ def summarize_issue_simple(title: str, body: str) -> str:
 
 
 def summarize_issue_llm(title: str, body: str) -> str:
-    """
-    Uses OpenAI-compatible API via HTTPS.
-    Requires secret: OPENAI_API_KEY
-    Optional: OPENAI_BASE_URL (defaults to https://api.openai.com/v1)
-    Optional: OPENAI_MODEL (defaults to gpt-4o-mini)
-    """
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
         return summarize_issue_simple(title, body)
 
-    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").strip().rstrip("/")
+    base_url = (os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1").strip().rstrip("/")
     model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
-    prompt = f"""You are an assistant that summarizes GitHub issues for engineers.
+    prompt = f"""
+Classify and summarize this GitHub issue.
 
-Return markdown with these sections:
-1) Summary (2-4 bullets)
-2) Repro Steps (if present)
-3) Likely Category (bug/feature/question)
-4) Suggested Next Actions (3-6 bullets)
+Return JSON in this format:
+{{
+  "summary_markdown": "...",
+  "category": "bug | feature | question"
+}}
 
 Issue Title: {title}
 Issue Body:
@@ -51,17 +46,12 @@ Issue Body:
 
     payload = {
         "model": model,
-        "messages": [
-            {"role": "system", "content": "You write concise, helpful engineering summaries in markdown."},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.2,
+        "input": prompt
     }
 
-    data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        f"{base_url}/chat/completions",
-        data=data,
+        f"{base_url}/responses",
+        data=json.dumps(payload).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
@@ -70,9 +60,10 @@ Issue Body:
     )
 
     with urllib.request.urlopen(req, timeout=30) as resp:
-        resp_json = json.loads(resp.read().decode("utf-8"))
+        data = json.loads(resp.read().decode("utf-8"))
 
-    return resp_json["choices"][0]["message"]["content"]
+    text = data["output"][0]["content"][0]["text"]
+    return text
 
 
 def main() -> None:
